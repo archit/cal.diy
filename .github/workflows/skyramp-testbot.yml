@@ -1,0 +1,128 @@
+name: Skyramp Testbot
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.actor != 'skyramp-testbot[bot]' }}
+
+jobs:
+  testbot:
+    # Only run for pull_request events or issue_comment on PRs mentioning @skyramp-testbot
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@skyramp-testbot') && github.event.comment.user.login != 'skyramp-testbot[bot]')
+    runs-on: 'ubuntu-latest'
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: write
+
+    # SUT env: mirrors .github/workflows/e2e.yml so the app builds/boots the
+    # same way it does in the real E2E job.
+    env:
+      ALLOWED_HOSTNAMES: ${{ vars.CI_ALLOWED_HOSTNAMES }}
+      CALENDSO_ENCRYPTION_KEY: ${{ secrets.CI_CALENDSO_ENCRYPTION_KEY }}
+      DAILY_API_KEY: ${{ secrets.CI_DAILY_API_KEY }}
+      DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
+      DATABASE_DIRECT_URL: ${{ secrets.CI_DATABASE_URL }}
+      E2E_TEST_MAILHOG_ENABLED: ${{ vars.E2E_TEST_MAILHOG_ENABLED }}
+      EMAIL_SERVER_HOST: ${{ secrets.CI_EMAIL_SERVER_HOST }}
+      EMAIL_SERVER_PORT: ${{ secrets.CI_EMAIL_SERVER_PORT }}
+      EMAIL_SERVER_USER: ${{ secrets.CI_EMAIL_SERVER_USER }}
+      EMAIL_SERVER_PASSWORD: ${{ secrets.CI_EMAIL_SERVER_PASSWORD}}
+      GOOGLE_API_CREDENTIALS: ${{ secrets.CI_GOOGLE_API_CREDENTIALS }}
+      GOOGLE_LOGIN_ENABLED: ${{ vars.CI_GOOGLE_LOGIN_ENABLED }}
+      NEXTAUTH_SECRET: ${{ secrets.CI_NEXTAUTH_SECRET }}
+      NEXTAUTH_URL: ${{ secrets.CI_NEXTAUTH_URL }}
+      NEXT_PUBLIC_API_V2_URL: ${{ secrets.CI_NEXT_PUBLIC_API_V2_URL }}
+      NEXT_PUBLIC_API_V2_ROOT_URL: ${{ secrets.CI_NEXT_PUBLIC_API_V2_ROOT_URL }}
+      NEXT_PUBLIC_IS_E2E: ${{ vars.CI_NEXT_PUBLIC_IS_E2E }}
+      NEXT_PUBLIC_ORG_SELF_SERVE_ENABLED: ${{ vars.CI_NEXT_PUBLIC_ORG_SELF_SERVE_ENABLED }}
+      NEXT_PUBLIC_STRIPE_PUBLIC_KEY: ${{ secrets.CI_NEXT_PUBLIC_STRIPE_PUBLIC_KEY }}
+      NEXT_PUBLIC_WEBAPP_URL: ${{ vars.CI_NEXT_PUBLIC_WEBAPP_URL }}
+      NEXT_PUBLIC_WEBSITE_URL: ${{ vars.CI_NEXT_PUBLIC_WEBSITE_URL }}
+      NODE_OPTIONS: --max-old-space-size=8192
+      PAYMENT_FEE_FIXED: ${{ vars.CI_PAYMENT_FEE_FIXED }}
+      PAYMENT_FEE_PERCENTAGE: ${{ vars.CI_PAYMENT_FEE_PERCENTAGE }}
+      SAML_ADMINS: ${{ secrets.CI_SAML_ADMINS }}
+      SAML_DATABASE_URL: ${{ secrets.CI_SAML_DATABASE_URL }}
+      STRIPE_PRIVATE_KEY: ${{ secrets.CI_STRIPE_PRIVATE_KEY }}
+      STRIPE_CLIENT_ID: ${{ secrets.CI_STRIPE_CLIENT_ID }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.CI_STRIPE_WEBHOOK_SECRET }}
+      SENDGRID_API_KEY: ${{ secrets.CI_SENDGRID_API_KEY }}
+      SENDGRID_EMAIL: ${{ secrets.CI_SENDGRID_EMAIL }}
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+    # Sidecars the PR does not change - pulled upstream images, not built from
+    # source. Copied from .github/workflows/e2e.yml. Registry auth is passed
+    # inline via `credentials:` so no separate docker/login-action step is needed.
+    services:
+      postgres:
+        image: postgres:18
+        credentials:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: calendso
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+          --health-start-period 2s
+        ports:
+          - 5432:5432
+      mailhog:
+        image: mailhog/mailhog:v1.0.1
+        credentials:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        ports:
+          - 8025:8025
+          - 1025:1025
+
+    steps:
+      - name: Generate GitHub App Token
+        id: skyramp-testbot-app-token
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
+        with:
+          app-id: ${{ secrets.SKYRAMP_TESTBOT_APP_ID }}
+          private-key: ${{ secrets.SKYRAMP_TESTBOT_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          token: ${{ steps.skyramp-testbot-app-token.outputs.token }}
+          persist-credentials: false
+
+      - uses: skyramp/testbot@70034f7ff936e4e516064307679160cdc8da60eb # v0.11.0
+        with:
+          skyrampLicenseFile: ${{ secrets.SKYRAMP_LICENSE_FILE }}
+          anthropicApiKey: ${{ secrets.SKYRAMP_TESTBOT_API_KEY }}
+          githubToken: ${{ steps.skyramp-testbot-app-token.outputs.token }}
+          githubAppId: ${{ secrets.SKYRAMP_TESTBOT_APP_ID }}
+          githubAppPrivateKey: ${{ secrets.SKYRAMP_TESTBOT_APP_PRIVATE_KEY }}
+          sutSetupMode: 'none'
+          sutSourceWorkflowFile: '.github/workflows/e2e.yml'
+          # Builds @calcom/web from PR source (install -> prisma generate ->
+          # db-seed -> build -> start), then backgrounds the server. See
+          # .skyramp/sut/setup.sh for the full command chain.
+          targetSetupCommand: 'bash .skyramp/sut/setup.sh'
+          targetReadyCheckCommand: 'bash .skyramp/sut/ready-check.sh'
+          targetReadyCheckDiagnosticsCommand: 'bash .skyramp/sut/diagnostics.sh'
+          # Generous timeout: cold yarn install + full monorepo `next build`
+          # with no dependency/build cache can take a long time on a fresh runner.
+          targetReadyCheckTimeout: '1800'
+          targetTeardownCommand: 'bash .skyramp/sut/teardown.sh'
+          # @calcom/web uses NextAuth cookie-session auth via a credentials
+          # login form (no bearer token). `pro`/`pro` is deterministically
+          # seeded by `yarn db-seed` (scripts/seed.ts) as part of setup.sh.
+          uiCredentials: 'pro:pro'

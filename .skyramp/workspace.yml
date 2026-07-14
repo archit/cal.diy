@@ -1,0 +1,47 @@
+# Skyramp Workspace Configuration
+workspace:
+  repoName: archit/cal.diy
+  repoUrl: https://github.com/archit/cal.diy
+metadata:
+  schemaVersion: v1
+  executorVersion: v1.3.34
+  createdAt: "2026-07-14T17:41:06.249Z"
+  updatedAt: "2026-07-14T17:41:06.256Z"
+services:
+  - serviceName: cal-diy-web-frontend
+    language: typescript
+    framework: playwright
+    testDirectory: apps/web/playwright
+    api:
+      authType: cookie
+      authHeader: Cookie
+      baseUrl: http://localhost:3000
+    runtimeDetails:
+      serverStartCommand: >-
+        yarn workspace @calcom/web copy-app-store-static && NEXT_PUBLIC_IS_E2E=1
+        NODE_OPTIONS='--dns-result-order=ipv4first' yarn workspace @calcom/web start -p 3000
+      runtime: local
+  - serviceName: cal-diy-api-v2-backend
+    language: typescript
+    framework: playwright
+    testDirectory: apps/api/v2/test
+    api:
+      schemaPath: docs/api-reference/v2/openapi.json
+      authType: bearer
+      authHeader: Authorization
+      authScheme: Bearer
+      baseUrl: http://localhost:5555
+    runtimeDetails:
+      serverStartCommand: yarn workspace @calcom/api-v2 start
+      runtime: local
+  - serviceName: cal-diy-docs-frontend
+    language: typescript
+    framework: playwright
+    testDirectory: tests/skyramp/docs
+    api:
+      authType: none
+      authHeader: ""
+      baseUrl: http://localhost:3004
+    runtimeDetails:
+      serverStartCommand: yarn workspace @calcom/docs start
+      runtime: local
