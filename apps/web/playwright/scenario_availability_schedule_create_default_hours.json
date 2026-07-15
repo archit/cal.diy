@@ -1,0 +1,54 @@
+[
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"json\":{\"name\":\"Skyramp Default Hours Test\"}}",
+    "ResponseBody": "{\"result\":{\"data\":{\"json\":{\"schedule\":{\"id\":88888,\"userId\":1,\"name\":\"Skyramp Default Hours Test\",\"timeZone\":\"Europe/London\"}}}}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Cookie": [
+        "SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/trpc/availability/schedule.create",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 3000,
+    "Timestamp": "2026-07-15T00:21:16.174Z",
+    "Scheme": "http"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"json\":{\"scheduleId\":88888}}",
+    "ResponseBody": "{\"result\":{\"data\":{\"json\":{\"id\":88888,\"name\":\"Skyramp Default Hours Test\",\"timeZone\":\"Europe/London\",\"isDefault\":false,\"workingHours\":[{\"days\":[1,2,3,4,5],\"startTime\":540,\"endTime\":1080}]}}}}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Cookie": [
+        "SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/trpc/availability/schedule.get",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 3000,
+    "Timestamp": "2026-07-15T00:21:16.174Z",
+    "Scheme": "http"
+  }
+]
